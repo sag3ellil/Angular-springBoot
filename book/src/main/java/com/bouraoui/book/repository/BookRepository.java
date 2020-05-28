@@ -11,16 +11,13 @@ import com.bouraoui.book.entity.Book;
 
 public interface BookRepository extends JpaRepository<Book, Long>{
 	
-	/*
-	 * list of books by category
-	 * */
 	@RestResource(path = "categoryid")
 	Page<Book> findByCategoryId(@Param("id") Long id, Pageable pageable);
 	
 	/*
 	 * list of books by name contains
 	 * */
-	@RestResource(path = "searchbykeyword")
-	Page<Book> findByNameContaining(@Param("name") String keyword, Pageable pageable);
+	//@RestResource(path = "searchbykeyword")
+	//Page<Book> findByNameContaining(@Param("name") String keyword, Pageable pageable);
 }
 

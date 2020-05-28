@@ -1,44 +1,126 @@
 import { Component, OnInit } from '@angular/core';
 import {Book} from 'src/app/common/book'
+import {CartItem} from 'src/app/common/cart-item'
 import { BookService } from 'src/app/services/book.service';
-
+import { CartService } from 'src/app/services/cart.service';
+//import { NgbPaginationConfig } from '@ng-bootstrap/ng-bootstrap';
+import { NgbPaginationConfig } from '@ng-bootstrap/ng-bootstrap';
 import{ActivatedRoute} from'@angular/router'
+
+import {NgxSpinnerService} from 'ngx-spinner'
 @Component({
   selector: 'app-book-list',
  // templateUrl: './book-list.component.html',
   templateUrl: './book-grid.component.html',
-  styleUrls: ['./book-list.component.css']
+  styleUrls: ['./book-list.component.css'],
+  providers: [NgbPaginationConfig]
 })
 export class BookListComponent implements OnInit {
 
-  constructor(private _bookService:BookService,private _ActivatedRoute:ActivatedRoute ) { }
+  books: Book[] = [];
+  currentCategoryId: number = 1;
+  previousCategoryId: number = 1;
+  searchMode: boolean = false;
+  
+  //properties for client side paging
+
+  //pageOfItems: Array<Book>;
+  //pageSize: number = 5;
+
+  //new properties for server-side paging
+  currentPage: number = 1;
+  pageSize: number = 5;
+  totalRecords: number = 0;
+
+  constructor(private _bookService: BookService,
+              private _activatedRoute: ActivatedRoute,
+              private _cartService: CartService,
+              config: NgbPaginationConfig,
+              private _spinnerService:NgxSpinnerService) {
+                config.boundaryLinks = true;
+                config.maxSize = 3;
+              }
 
   ngOnInit() {
-    this._ActivatedRoute.paramMap.subscribe(()=>{
-        this.listBooks();
+    this._activatedRoute.paramMap.subscribe(()=>{
+      this.listBooks();
     })
   }
-  books:Book[];
-currentCategoryId:number;
-  listBooks()
-  {
-  const hasCateg=  this._ActivatedRoute.snapshot.paramMap.has('id');
-    if(hasCateg)
-    {
-      this.currentCategoryId= +this._ActivatedRoute.snapshot.paramMap.get('id');
-    }
-    else{
-      this.currentCategoryId=1;
-    }
+
+  /*client side paging
+  pageClick(pageOfItems: Array<Book>) {
+    // update current page of items
+    this.pageOfItems = pageOfItems;
+  } */
+
+  listBooks(){
     
-    this._bookService.getBooks(this.currentCategoryId).subscribe(
-      data => {
-       
-        this.books=data;
-      }
-    )
+    this._spinnerService.show()
+    this.searchMode = this._activatedRoute.snapshot.paramMap.has('keyword');
+
+    if(this.searchMode){
+      //do search work
+      this.handleSearchBooks();
+    }else {
+      //display books based on category
+      this.handleListBooks();
+    }
   }
 
-  
+  handleListBooks(){
+    const hasCategoryId: boolean = this._activatedRoute.snapshot.paramMap.has('id');
+    
+    if (hasCategoryId) {
+      this.currentCategoryId = +this._activatedRoute.snapshot.paramMap.get('id');
+    }else {
+      this.currentCategoryId = 1;
+    }
 
+    //setting up the page number to 1
+    //if user navigates to other category
+    if (this.previousCategoryId != this.currentCategoryId) {
+      this.currentPage = 1;
+    }
+
+    this.previousCategoryId = this.currentCategoryId;
+
+    console.log('current page size', this.currentPage-1);
+    
+    this._bookService.getBooks(this.currentCategoryId, 
+                                        this.currentPage - 1, 
+                                        this.pageSize)
+                                        .subscribe(this.processResult());
+  }
+
+  handleSearchBooks(){
+    const keyword: string = this._activatedRoute.snapshot.paramMap.get('keyword');
+
+    this._bookService.searchBook(keyword,
+                                  this.currentPage - 1,
+                                  this.pageSize)
+                                  .subscribe(this.processResult());
+  }
+
+  //client side paging and server side paging
+  updatePageSize(pageSize: number) {
+    this.pageSize = pageSize;
+    this.currentPage = 1;
+    this.listBooks();
+  }
+
+  processResult(){
+    return data => {
+      this._spinnerService.hide()
+      this.books = data._embedded.books;
+      this.currentPage = data.page.number + 1;
+      this.totalRecords = data.page.totalElements;
+      this.pageSize = data.page.size;
+    }
+  }
+
+  addToCart(book: Book){
+    console.log(`book name: ${book.name}, and price: ${book.unitPrice}`);
+    const cartItem = new CartItem(book);
+    this._cartService.addToCart(cartItem);
+  }
 }
